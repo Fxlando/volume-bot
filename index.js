@@ -333,7 +333,8 @@ bot.start((ctx) => {
 
 Available Commands:
 /add_token <TOKEN_ADDRESS> - Set target token
-/create_wallets - Generate 50 wallets
+/create_wallets <NUMBER> - Generate N wallets (1-50)
+/wallet_manager - Advanced wallet management
 /fund_all - Get funding instructions
 /wallets - View wallet addresses
 /balance - Check wallet balances
@@ -344,7 +345,8 @@ Available Commands:
 bot.command('help', (ctx) => {
   ctx.reply(`📖 Commands:
 /add_token <TOKEN_ADDRESS> - Set the target token for simulation
-/create_wallets - Generate 50 fresh wallets
+/create_wallets <NUMBER> - Generate N wallets (1-50)
+/wallet_manager - Advanced wallet management (create, delete, view details)
 /fund_all - Instructions for funding wallets
 /wallets - Display all wallet public keys
 /balance - Check SOL balance of all wallets
@@ -375,24 +377,263 @@ bot.command('add_token', async (ctx) => {
 });
 
 bot.command('create_wallets', async (ctx) => {
+  const parts = ctx.message.text.split(' ');
+  const count = parts.length > 1 ? parseInt(parts[1]) : 50;
+  
+  if (isNaN(count) || count < 1 || count > 50) {
+    return ctx.reply('❌ Please specify a number between 1 and 50.\nUsage: /create_wallets <NUMBER>\nExample: /create_wallets 10');
+  }
+  
   try {
-    ctx.reply('🔄 Generating 50 wallets...');
+    ctx.reply(`🔄 Generating ${count} wallets...`);
     
-    let wallets = [];
-    for (let i = 0; i < 50; i++) {
+    let wallets = loadWallets();
+    const startIndex = wallets.length;
+    
+    for (let i = 0; i < count; i++) {
       const keypair = Keypair.generate();
       wallets.push({
+        id: startIndex + i + 1,
         secretKey: Array.from(keypair.secretKey),
-        pubkey: keypair.publicKey.toBase58()
+        pubkey: keypair.publicKey.toBase58(),
+        createdAt: new Date().toISOString(),
+        name: `Wallet ${startIndex + i + 1}`
       });
     }
     
     saveWallets(wallets);
-    ctx.reply('✅ Successfully created 50 wallets! Use /wallets to view addresses.');
+    ctx.reply(`✅ Successfully created ${count} wallets! Total wallets: ${wallets.length}\n\nUse /wallet_manager for advanced management or /wallets to view addresses.`);
   } catch (error) {
     console.error('Error creating wallets:', error);
     ctx.reply('❌ Error creating wallets. Please try again.');
   }
+});
+
+bot.command('wallet_manager', async (ctx) => {
+  const wallets = loadWallets();
+  
+  if (wallets.length === 0) {
+    return ctx.reply('❌ No wallets found. Use /create_wallets first.');
+  }
+  
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '📋 View All Wallets', callback_data: 'view_all_wallets' },
+        { text: '➕ Create New Wallet', callback_data: 'create_single_wallet' }
+      ],
+      [
+        { text: '🗑️ Delete All Wallets', callback_data: 'delete_all_wallets' },
+        { text: '💰 Check Balances', callback_data: 'check_balances' }
+      ],
+      [
+        { text: '🔍 Wallet Details', callback_data: 'wallet_details' },
+        { text: '❌ Delete Specific', callback_data: 'delete_specific' }
+      ]
+    ]
+  };
+  
+  ctx.reply(`🔐 Wallet Manager\n\nTotal Wallets: ${wallets.length}\n\nSelect an option:`, {
+    reply_markup: keyboard
+  });
+});
+
+// Handle wallet manager callbacks
+bot.action('view_all_wallets', async (ctx) => {
+  const wallets = loadWallets();
+  let message = `📋 All Wallets (${wallets.length} total):\n\n`;
+  
+  wallets.forEach((wallet, index) => {
+    message += `${index + 1}. ${wallet.name}\n`;
+    message += `   Address: \`${wallet.pubkey}\`\n`;
+    message += `   Created: ${new Date(wallet.createdAt).toLocaleDateString()}\n\n`;
+  });
+  
+  if (message.length > 4096) {
+    message = message.substring(0, 4093) + '...';
+  }
+  
+  ctx.editMessageText(message);
+});
+
+bot.action('create_single_wallet', async (ctx) => {
+  const wallets = loadWallets();
+  const keypair = Keypair.generate();
+  
+  wallets.push({
+    id: wallets.length + 1,
+    secretKey: Array.from(keypair.secretKey),
+    pubkey: keypair.publicKey.toBase58(),
+    createdAt: new Date().toISOString(),
+    name: `Wallet ${wallets.length + 1}`
+  });
+  
+  saveWallets(wallets);
+  ctx.editMessageText(`✅ New wallet created!\n\nAddress: \`${keypair.publicKey.toBase58()}\`\nTotal wallets: ${wallets.length}`);
+});
+
+bot.action('delete_all_wallets', async (ctx) => {
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '✅ Confirm Delete All', callback_data: 'confirm_delete_all' },
+        { text: '❌ Cancel', callback_data: 'cancel_delete' }
+      ]
+    ]
+  };
+  
+  ctx.editMessageText('⚠️ Are you sure you want to delete ALL wallets?\n\nThis action cannot be undone!', {
+    reply_markup: keyboard
+  });
+});
+
+bot.action('confirm_delete_all', async (ctx) => {
+  saveWallets([]);
+  ctx.editMessageText('✅ All wallets have been deleted.');
+});
+
+bot.action('cancel_delete', async (ctx) => {
+  ctx.editMessageText('❌ Deletion cancelled.');
+});
+
+bot.action('check_balances', async (ctx) => {
+  const wallets = loadWallets();
+  ctx.editMessageText('🔄 Checking balances...');
+  
+  try {
+    let totalBalance = 0;
+    let fundedWallets = 0;
+    let message = '💰 Wallet Balances:\n\n';
+    
+    for (let i = 0; i < Math.min(wallets.length, 20); i++) {
+      const balance = await connection.getBalance(new PublicKey(wallets[i].pubkey));
+      const solBalance = balance / LAMPORTS_PER_SOL;
+      totalBalance += solBalance;
+      if (solBalance > 0.025) fundedWallets++;
+      
+      message += `${i + 1}. ${wallets[i].name}: ${solBalance.toFixed(4)} SOL\n`;
+    }
+    
+    if (wallets.length > 20) {
+      message += `\n... and ${wallets.length - 20} more wallets\n`;
+    }
+    
+    message += `\n📊 Summary:\n`;
+    message += `Funded wallets: ${fundedWallets}/${Math.min(wallets.length, 20)}\n`;
+    message += `Total SOL: ${totalBalance.toFixed(4)}\n`;
+    message += `Average: ${(totalBalance / Math.min(wallets.length, 20)).toFixed(4)} SOL per wallet`;
+    
+    ctx.editMessageText(message);
+  } catch (error) {
+    ctx.editMessageText('❌ Error checking balances. Please try again.');
+  }
+});
+
+bot.action('wallet_details', async (ctx) => {
+  const wallets = loadWallets();
+  let message = '🔍 Select a wallet to view details:\n\n';
+  
+  wallets.forEach((wallet, index) => {
+    message += `${index + 1}. ${wallet.name}\n`;
+  });
+  
+  message += '\nReply with the wallet number (1-' + wallets.length + ') to view details.';
+  
+  ctx.editMessageText(message);
+});
+
+bot.action('delete_specific', async (ctx) => {
+  const wallets = loadWallets();
+  let message = '🗑️ Select a wallet to delete:\n\n';
+  
+  wallets.forEach((wallet, index) => {
+    message += `${index + 1}. ${wallet.name}\n`;
+  });
+  
+  message += '\nReply with the wallet number (1-' + wallets.length + ') to delete.';
+  
+  ctx.editMessageText(message);
+});
+
+// Handle text responses for wallet details and deletion
+bot.on('text', async (ctx) => {
+  const text = ctx.message.text;
+  const wallets = loadWallets();
+  
+  // Check if it's a wallet number for details
+  if (/^\d+$/.test(text)) {
+    const walletIndex = parseInt(text) - 1;
+    
+    if (walletIndex >= 0 && walletIndex < wallets.length) {
+      const wallet = wallets[walletIndex];
+      const keypair = Keypair.fromSecretKey(Uint8Array.from(wallet.secretKey));
+      
+      let message = `🔍 Wallet Details:\n\n`;
+      message += `Name: ${wallet.name}\n`;
+      message += `ID: ${wallet.id}\n`;
+      message += `Public Key: \`${wallet.pubkey}\`\n`;
+      message += `Private Key: \`[${wallet.secretKey.join(',')}]\`\n`;
+      message += `Created: ${new Date(wallet.createdAt).toLocaleString()}\n\n`;
+      
+      try {
+        const balance = await connection.getBalance(keypair.publicKey);
+        const solBalance = balance / LAMPORTS_PER_SOL;
+        message += `Balance: ${solBalance.toFixed(4)} SOL\n`;
+        message += `Status: ${solBalance > 0.025 ? '✅ Funded' : '❌ Needs funding'}`;
+      } catch (error) {
+        message += `Balance: Error checking\n`;
+      }
+      
+      const keyboard = {
+        inline_keyboard: [
+          [
+            { text: '🗑️ Delete This Wallet', callback_data: `delete_wallet_${walletIndex}` },
+            { text: '📋 Back to Manager', callback_data: 'back_to_manager' }
+          ]
+        ]
+      };
+      
+      ctx.reply(message, { reply_markup: keyboard });
+    }
+  }
+});
+
+// Handle delete wallet callbacks
+bot.action(/delete_wallet_(\d+)/, async (ctx) => {
+  const walletIndex = parseInt(ctx.match[1]);
+  const wallets = loadWallets();
+  
+  if (walletIndex >= 0 && walletIndex < wallets.length) {
+    const deletedWallet = wallets.splice(walletIndex, 1)[0];
+    saveWallets(wallets);
+    
+    ctx.editMessageText(`✅ Deleted wallet: ${deletedWallet.name}\n\nRemaining wallets: ${wallets.length}`);
+  }
+});
+
+bot.action('back_to_manager', async (ctx) => {
+  const wallets = loadWallets();
+  
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '📋 View All Wallets', callback_data: 'view_all_wallets' },
+        { text: '➕ Create New Wallet', callback_data: 'create_single_wallet' }
+      ],
+      [
+        { text: '🗑️ Delete All Wallets', callback_data: 'delete_all_wallets' },
+        { text: '💰 Check Balances', callback_data: 'check_balances' }
+      ],
+      [
+        { text: '🔍 Wallet Details', callback_data: 'wallet_details' },
+        { text: '❌ Delete Specific', callback_data: 'delete_specific' }
+      ]
+    ]
+  };
+  
+  ctx.editMessageText(`🔐 Wallet Manager\n\nTotal Wallets: ${wallets.length}\n\nSelect an option:`, {
+    reply_markup: keyboard
+  });
 });
 
 bot.command('fund_all', async (ctx) => {
@@ -418,8 +659,17 @@ bot.command('wallets', (ctx) => {
     return ctx.reply('❌ No wallets found. Use /create_wallets first.');
   }
   
-  const pubkeys = wallets.map((w, i) => `${i + 1}. ${w.pubkey}`).join('\n');
-  ctx.reply(`🔐 Wallet Addresses (${wallets.length} total):\n\n${pubkeys}`);
+  let message = `🔐 Wallet Addresses (${wallets.length} total):\n\n`;
+  
+  wallets.forEach((wallet, index) => {
+    message += `${index + 1}. ${wallet.name}: \`${wallet.pubkey}\`\n`;
+  });
+  
+  if (message.length > 4096) {
+    message = message.substring(0, 4093) + '...';
+  }
+  
+  ctx.reply(message);
 });
 
 bot.command('balance', async (ctx) => {
