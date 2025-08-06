@@ -86,7 +86,7 @@ The Centralized Wallet Manager is now the **ONLY** way to create and manage wall
 Name: Wallet 1
 ID: 1
 Public Key: `ABC123...XYZ789`
-Private Key: `[1,2,3,4,5,...]`
+Private Key: `haUvqeaeg6E7aaH4qLgxm5gX2iexF5T9H5as16p3HazHw9n8oLf6iZXSSqBk25xfJGKK1jPe3xgSPkKWpFfeqv5`
 Created: 1/1/2024, 12:00:00 PM
 
 Balance: 0.0500 SOL
