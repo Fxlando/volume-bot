@@ -333,7 +333,6 @@ bot.start((ctx) => {
 
 Available Commands:
 /add_token <TOKEN_ADDRESS> - Set target token
-/create_wallets <NUMBER> - Generate N wallets (1-50)
 /wallet_manager - Advanced wallet management
 /fund_all - Get funding instructions
 /wallets - View wallet addresses
@@ -345,7 +344,6 @@ Available Commands:
 bot.command('help', (ctx) => {
   ctx.reply(`📖 Commands:
 /add_token <TOKEN_ADDRESS> - Set the target token for simulation
-/create_wallets <NUMBER> - Generate N wallets (1-50)
 /wallet_manager - Advanced wallet management (create, delete, view details)
 /fund_all - Instructions for funding wallets
 /wallets - Display all wallet public keys
@@ -376,45 +374,8 @@ bot.command('add_token', async (ctx) => {
   }
 });
 
-bot.command('create_wallets', async (ctx) => {
-  const parts = ctx.message.text.split(' ');
-  const count = parts.length > 1 ? parseInt(parts[1]) : 50;
-  
-  if (isNaN(count) || count < 1 || count > 50) {
-    return ctx.reply('❌ Please specify a number between 1 and 50.\nUsage: /create_wallets <NUMBER>\nExample: /create_wallets 10');
-  }
-  
-  try {
-    ctx.reply(`🔄 Generating ${count} wallets...`);
-    
-    let wallets = loadWallets();
-    const startIndex = wallets.length;
-    
-    for (let i = 0; i < count; i++) {
-      const keypair = Keypair.generate();
-      wallets.push({
-        id: startIndex + i + 1,
-        secretKey: Array.from(keypair.secretKey),
-        pubkey: keypair.publicKey.toBase58(),
-        createdAt: new Date().toISOString(),
-        name: `Wallet ${startIndex + i + 1}`
-      });
-    }
-    
-    saveWallets(wallets);
-    ctx.reply(`✅ Successfully created ${count} wallets! Total wallets: ${wallets.length}\n\nUse /wallet_manager for advanced management or /wallets to view addresses.`);
-  } catch (error) {
-    console.error('Error creating wallets:', error);
-    ctx.reply('❌ Error creating wallets. Please try again.');
-  }
-});
-
 bot.command('wallet_manager', async (ctx) => {
   const wallets = loadWallets();
-  
-  if (wallets.length === 0) {
-    return ctx.reply('❌ No wallets found. Use /create_wallets first.');
-  }
   
   const keyboard = {
     inline_keyboard: [
@@ -423,12 +384,15 @@ bot.command('wallet_manager', async (ctx) => {
         { text: '➕ Create New Wallet', callback_data: 'create_single_wallet' }
       ],
       [
-        { text: '🗑️ Delete All Wallets', callback_data: 'delete_all_wallets' },
+        { text: '🔢 Create Multiple Wallets', callback_data: 'create_multiple_wallets' },
         { text: '💰 Check Balances', callback_data: 'check_balances' }
       ],
       [
         { text: '🔍 Wallet Details', callback_data: 'wallet_details' },
         { text: '❌ Delete Specific', callback_data: 'delete_specific' }
+      ],
+      [
+        { text: '🗑️ Delete All Wallets', callback_data: 'delete_all_wallets' }
       ]
     ]
   };
@@ -441,6 +405,11 @@ bot.command('wallet_manager', async (ctx) => {
 // Handle wallet manager callbacks
 bot.action('view_all_wallets', async (ctx) => {
   const wallets = loadWallets();
+  
+  if (wallets.length === 0) {
+    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.');
+  }
+  
   let message = `📋 All Wallets (${wallets.length} total):\n\n`;
   
   wallets.forEach((wallet, index) => {
@@ -472,6 +441,63 @@ bot.action('create_single_wallet', async (ctx) => {
   ctx.editMessageText(`✅ New wallet created!\n\nAddress: \`${keypair.publicKey.toBase58()}\`\nTotal wallets: ${wallets.length}`);
 });
 
+bot.action('create_multiple_wallets', async (ctx) => {
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '5 Wallets', callback_data: 'create_5_wallets' },
+        { text: '10 Wallets', callback_data: 'create_10_wallets' },
+        { text: '20 Wallets', callback_data: 'create_20_wallets' }
+      ],
+      [
+        { text: '30 Wallets', callback_data: 'create_30_wallets' },
+        { text: '40 Wallets', callback_data: 'create_40_wallets' },
+        { text: '50 Wallets', callback_data: 'create_50_wallets' }
+      ],
+      [
+        { text: '🔙 Back to Manager', callback_data: 'back_to_manager' }
+      ]
+    ]
+  };
+  
+  ctx.editMessageText('🔢 Select number of wallets to create:', {
+    reply_markup: keyboard
+  });
+});
+
+// Handle multiple wallet creation
+bot.action(/create_(\d+)_wallets/, async (ctx) => {
+  const count = parseInt(ctx.match[1]);
+  const wallets = loadWallets();
+  
+  if (wallets.length + count > 50) {
+    return ctx.editMessageText(`❌ Cannot create ${count} wallets. Maximum 50 wallets allowed. Current: ${wallets.length}`);
+  }
+  
+  ctx.editMessageText(`🔄 Creating ${count} wallets...`);
+  
+  try {
+    const startIndex = wallets.length;
+    
+    for (let i = 0; i < count; i++) {
+      const keypair = Keypair.generate();
+      wallets.push({
+        id: startIndex + i + 1,
+        secretKey: Array.from(keypair.secretKey),
+        pubkey: keypair.publicKey.toBase58(),
+        createdAt: new Date().toISOString(),
+        name: `Wallet ${startIndex + i + 1}`
+      });
+    }
+    
+    saveWallets(wallets);
+    ctx.editMessageText(`✅ Successfully created ${count} wallets!\n\nTotal wallets: ${wallets.length}\n\nUse "View All Wallets" to see the new wallets.`);
+  } catch (error) {
+    console.error('Error creating wallets:', error);
+    ctx.editMessageText('❌ Error creating wallets. Please try again.');
+  }
+});
+
 bot.action('delete_all_wallets', async (ctx) => {
   const keyboard = {
     inline_keyboard: [
@@ -493,11 +519,40 @@ bot.action('confirm_delete_all', async (ctx) => {
 });
 
 bot.action('cancel_delete', async (ctx) => {
-  ctx.editMessageText('❌ Deletion cancelled.');
+  const wallets = loadWallets();
+  
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '📋 View All Wallets', callback_data: 'view_all_wallets' },
+        { text: '➕ Create New Wallet', callback_data: 'create_single_wallet' }
+      ],
+      [
+        { text: '🔢 Create Multiple Wallets', callback_data: 'create_multiple_wallets' },
+        { text: '💰 Check Balances', callback_data: 'check_balances' }
+      ],
+      [
+        { text: '🔍 Wallet Details', callback_data: 'wallet_details' },
+        { text: '❌ Delete Specific', callback_data: 'delete_specific' }
+      ],
+      [
+        { text: '🗑️ Delete All Wallets', callback_data: 'delete_all_wallets' }
+      ]
+    ]
+  };
+  
+  ctx.editMessageText(`🔐 Wallet Manager\n\nTotal Wallets: ${wallets.length}\n\nSelect an option:`, {
+    reply_markup: keyboard
+  });
 });
 
 bot.action('check_balances', async (ctx) => {
   const wallets = loadWallets();
+  
+  if (wallets.length === 0) {
+    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.');
+  }
+  
   ctx.editMessageText('🔄 Checking balances...');
   
   try {
@@ -531,6 +586,11 @@ bot.action('check_balances', async (ctx) => {
 
 bot.action('wallet_details', async (ctx) => {
   const wallets = loadWallets();
+  
+  if (wallets.length === 0) {
+    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.');
+  }
+  
   let message = '🔍 Select a wallet to view details:\n\n';
   
   wallets.forEach((wallet, index) => {
@@ -544,6 +604,11 @@ bot.action('wallet_details', async (ctx) => {
 
 bot.action('delete_specific', async (ctx) => {
   const wallets = loadWallets();
+  
+  if (wallets.length === 0) {
+    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.');
+  }
+  
   let message = '🗑️ Select a wallet to delete:\n\n';
   
   wallets.forEach((wallet, index) => {
@@ -621,12 +686,15 @@ bot.action('back_to_manager', async (ctx) => {
         { text: '➕ Create New Wallet', callback_data: 'create_single_wallet' }
       ],
       [
-        { text: '🗑️ Delete All Wallets', callback_data: 'delete_all_wallets' },
+        { text: '🔢 Create Multiple Wallets', callback_data: 'create_multiple_wallets' },
         { text: '💰 Check Balances', callback_data: 'check_balances' }
       ],
       [
         { text: '🔍 Wallet Details', callback_data: 'wallet_details' },
         { text: '❌ Delete Specific', callback_data: 'delete_specific' }
+      ],
+      [
+        { text: '🗑️ Delete All Wallets', callback_data: 'delete_all_wallets' }
       ]
     ]
   };
@@ -639,7 +707,7 @@ bot.action('back_to_manager', async (ctx) => {
 bot.command('fund_all', async (ctx) => {
   const wallets = loadWallets();
   if (wallets.length === 0) {
-    return ctx.reply('❌ No wallets found. Use /create_wallets first.');
+    return ctx.reply('❌ No wallets found. Use /wallet_manager to create wallets first.');
   }
   
   ctx.reply(`💰 Funding Instructions:
@@ -656,7 +724,7 @@ Use /wallets to get all addresses, then send SOL from your main wallet.
 bot.command('wallets', (ctx) => {
   const wallets = loadWallets();
   if (wallets.length === 0) {
-    return ctx.reply('❌ No wallets found. Use /create_wallets first.');
+    return ctx.reply('❌ No wallets found. Use /wallet_manager to create wallets first.');
   }
   
   let message = `🔐 Wallet Addresses (${wallets.length} total):\n\n`;
@@ -675,7 +743,7 @@ bot.command('wallets', (ctx) => {
 bot.command('balance', async (ctx) => {
   const wallets = loadWallets();
   if (wallets.length === 0) {
-    return ctx.reply('❌ No wallets found. Use /create_wallets first.');
+    return ctx.reply('❌ No wallets found. Use /wallet_manager to create wallets first.');
   }
   
   ctx.reply('🔄 Checking balances...');
@@ -710,7 +778,7 @@ bot.command('simulate', async (ctx) => {
   
   const wallets = loadWallets();
   if (wallets.length === 0) {
-    return ctx.reply('❌ No wallets found. Use /create_wallets first.');
+    return ctx.reply('❌ No wallets found. Use /wallet_manager to create wallets first.');
   }
 
   ctx.reply(`🚀 Starting volume simulation for token: ${TOKEN_MINT}\n⏳ Processing ${wallets.length} wallets with parallel processing...`);

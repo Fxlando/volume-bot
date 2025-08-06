@@ -3,7 +3,7 @@
 
 A Telegram bot for simulating volume on Solana tokens using Jupiter DEX aggregator. This bot creates multiple wallets, funds them, and executes swaps to generate trading volume.
 
-## 🚀 Recent Updates (v2.1)
+## 🚀 Recent Updates (v2.2)
 
 ### Critical Fixes Implemented:
 - ✅ **Updated to Web3.js v2.0+** - Latest Solana SDK with improved performance
@@ -13,7 +13,7 @@ A Telegram bot for simulating volume on Solana tokens using Jupiter DEX aggregat
 - ✅ **Adaptive Rate Limiting** - Smart backoff for Jupiter API calls
 - ✅ **Enhanced Error Handling** - Better categorization and user feedback
 - ✅ **Security Improvements** - Proper .gitignore and environment protection
-- ✅ **Advanced Wallet Manager** - Create, delete, and manage individual wallets
+- ✅ **Centralized Wallet Manager** - All wallet operations through `/wallet_manager`
 
 ## 📋 Prerequisites
 
@@ -52,40 +52,36 @@ npm start
 | `/start` | Welcome message and command list |
 | `/help` | Show available commands |
 | `/add_token <ADDRESS>` | Set target token for simulation |
-| `/create_wallets <NUMBER>` | Generate N wallets (1-50) |
-| `/wallet_manager` | **NEW!** Advanced wallet management |
+| `/wallet_manager` | **CENTRAL HUB** - All wallet operations |
 | `/fund_all` | Get funding instructions |
 | `/wallets` | Display all wallet addresses |
 | `/balance` | Check wallet balances |
 | `/simulate` | Start volume simulation |
 
-## 🔐 Advanced Wallet Manager
+## 🔐 Centralized Wallet Manager
 
-### New Features:
-- **Individual Wallet Creation**: Create 1-50 wallets at a time
-- **Wallet Details**: View private key, public key, balance, and creation date
-- **Selective Deletion**: Delete specific wallets or all wallets
-- **Balance Monitoring**: Check individual wallet balances
-- **Interactive Interface**: Inline keyboard for easy navigation
+### **NEW!** All wallet operations are now centralized in `/wallet_manager`:
 
 ### Wallet Manager Options:
-- 📋 **View All Wallets** - List all wallets with details
-- ➕ **Create New Wallet** - Add single wallet
-- 🗑️ **Delete All Wallets** - Remove all wallets (with confirmation)
-- 💰 **Check Balances** - View individual wallet balances
-- 🔍 **Wallet Details** - View specific wallet information
-- ❌ **Delete Specific** - Remove individual wallets
+- **📋 View All Wallets** - List all wallets with details
+- **➕ Create New Wallet** - Add single wallet
+- **🔢 Create Multiple Wallets** - Create 5, 10, 20, 30, 40, or 50 wallets
+- **💰 Check Balances** - View individual wallet balances
+- **🔍 Wallet Details** - View specific wallet information
+- **❌ Delete Specific** - Remove individual wallets
+- **🗑️ Delete All Wallets** - Remove all wallets (with confirmation)
 
 ### Usage Examples:
 ```bash
-# Create 10 wallets
-/create_wallets 10
-
-# Access wallet manager
+# Access wallet manager (central hub)
 /wallet_manager
 
-# View wallet details (reply with wallet number)
-# 1, 2, 3, etc.
+# Create wallets through manager
+# Click "➕ Create New Wallet" for single wallet
+# Click "🔢 Create Multiple Wallets" for bulk creation
+
+# Manage existing wallets
+# Use interactive buttons for all operations
 ```
 
 ## 💰 Funding Requirements
@@ -106,7 +102,7 @@ npm start
 - ✅ Rate limiting to prevent abuse
 - ✅ Transaction validation
 - ✅ Comprehensive error logging
-- ✅ **NEW!** Individual wallet management
+- ✅ **NEW!** Centralized wallet management
 
 ## ⚡ Performance Improvements
 
@@ -139,7 +135,7 @@ npm start
 - **Multi-wallet Management**: 50 wallet support
 - **Real-time Monitoring**: Telegram progress updates
 - **Error Recovery**: Automatic retry mechanisms
-- **Advanced Wallet Manager**: Individual wallet control
+- **Centralized Wallet Manager**: All operations in one place
 
 ## 📊 Success Rate Optimization
 
@@ -149,7 +145,7 @@ npm start
 3. **Dynamic Priority Fees**: 80th percentile of recent fees
 4. **Enhanced Confirmation**: 45 retry attempts with exponential backoff
 5. **Parallel Processing**: 5 wallets per batch for speed
-6. **Individual Wallet Control**: Create and manage wallets as needed
+6. **Centralized Management**: All wallet operations through wallet manager
 
 ### Expected Success Rate: 85-95% (depending on network conditions)
 
@@ -157,7 +153,7 @@ npm start
 
 ### Before Running Simulation:
 1. ✅ Set target token with `/add_token`
-2. ✅ Create wallets with `/create_wallets` or `/wallet_manager`
+2. ✅ Create wallets with `/wallet_manager`
 3. ✅ Fund all wallets (check with `/balance`)
 4. ✅ Ensure sufficient SOL reserves
 
@@ -177,7 +173,7 @@ npm start
 
 ### Debug Commands:
 - `/balance` - Check wallet funding status
-- `/wallet_manager` - Advanced wallet management
+- `/wallet_manager` - Centralized wallet management
 - Monitor console logs for detailed error information
 
 ## 📈 Usage Example
@@ -188,9 +184,8 @@ npm start
 
 # 2. In Telegram:
 /add_token EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-/create_wallets 10
 /wallet_manager
-# Use interactive buttons to manage wallets
+# Use interactive buttons to create and manage wallets
 /fund_all
 # Send SOL to all wallet addresses
 /balance
