@@ -1,73 +1,57 @@
-# Advanced Wallet Manager Guide
+# Centralized Wallet Manager Guide
 
 ## 🔐 Overview
 
-The Advanced Wallet Manager provides comprehensive control over your Solana wallets with an interactive interface. You can create, delete, view details, and manage individual wallets with ease.
+The Centralized Wallet Manager is now the **ONLY** way to create and manage wallets in your Solana volume bundler. All wallet operations are centralized through `/wallet_manager` for a streamlined experience.
 
-## 🚀 New Features
+## 🚀 Key Changes
 
-### ✅ Individual Wallet Creation
-- Create 1-50 wallets at a time
-- Flexible wallet generation based on your needs
-- Automatic wallet naming and ID assignment
+### ✅ **REMOVED**: Standalone `/create_wallets` Command
+- No more separate wallet creation command
+- All wallet operations centralized in wallet manager
+- Cleaner, more organized interface
 
-### ✅ Detailed Wallet Information
-- View private key and public key
-- Check individual wallet balances
-- See creation date and wallet status
-- Monitor funding status
-
-### ✅ Selective Wallet Management
-- Delete specific wallets
-- Delete all wallets with confirmation
-- View all wallets with details
-- Individual wallet balance checking
-
-### ✅ Interactive Interface
-- Inline keyboard buttons
-- Easy navigation between options
-- Confirmation dialogs for destructive actions
-- Real-time balance updates
+### ✅ **ENHANCED**: Wallet Manager Features
+- **Single Wallet Creation**: Add one wallet at a time
+- **Bulk Wallet Creation**: Create 5, 10, 20, 30, 40, or 50 wallets
+- **Wallet Details**: View private key, public key, balance, and creation date
+- **Selective Deletion**: Delete specific wallets or all wallets
+- **Balance Monitoring**: Check individual wallet balances
+- **Interactive Interface**: Inline keyboard for easy navigation
 
 ## 📋 Available Commands
 
 ### Main Commands
 | Command | Description |
 |---------|-------------|
-| `/create_wallets <NUMBER>` | Create N wallets (1-50) |
-| `/wallet_manager` | Access advanced wallet management |
+| `/wallet_manager` | **CENTRAL HUB** - All wallet operations |
 | `/wallets` | View all wallet addresses |
 | `/balance` | Check wallet balances |
 
 ### Wallet Manager Options
 | Option | Description |
 |--------|-------------|
-| 📋 **View All Wallets** | List all wallets with details |
-| ➕ **Create New Wallet** | Add single wallet |
-| 🗑️ **Delete All Wallets** | Remove all wallets (with confirmation) |
-| 💰 **Check Balances** | View individual wallet balances |
-| 🔍 **Wallet Details** | View specific wallet information |
-| ❌ **Delete Specific** | Remove individual wallets |
+| **📋 View All Wallets** | List all wallets with details |
+| **➕ Create New Wallet** | Add single wallet |
+| **🔢 Create Multiple Wallets** | Create 5, 10, 20, 30, 40, or 50 wallets |
+| **💰 Check Balances** | View individual wallet balances |
+| **🔍 Wallet Details** | View specific wallet information |
+| **❌ Delete Specific** | Remove individual wallets |
+| **🗑️ Delete All Wallets** | Remove all wallets (with confirmation) |
 
 ## 🔧 Usage Examples
 
-### Creating Wallets
-```bash
-# Create 10 wallets
-/create_wallets 10
-
-# Create 1 wallet
-/create_wallets 1
-
-# Create 50 wallets (maximum)
-/create_wallets 50
-```
-
 ### Accessing Wallet Manager
 ```bash
-# Open wallet manager
+# Open wallet manager (central hub)
 /wallet_manager
 ```
+
+### Creating Wallets
+1. Use `/wallet_manager`
+2. Click "➕ Create New Wallet" for single wallet
+3. Click "🔢 Create Multiple Wallets" for bulk creation
+4. Select desired quantity (5, 10, 20, 30, 40, 50)
 
 ### Viewing Wallet Details
 1. Use `/wallet_manager`
@@ -130,10 +114,11 @@ Status: ✅ Funded
 ## 📈 Management Workflows
 
 ### Creating Multiple Wallets
-1. Use `/create_wallets <NUMBER>`
-2. Wait for confirmation
-3. Use `/wallet_manager` to view details
-4. Fund wallets as needed
+1. Use `/wallet_manager`
+2. Click "🔢 Create Multiple Wallets"
+3. Select desired quantity
+4. Wait for confirmation
+5. Use "View All Wallets" to see new wallets
 
 ### Managing Existing Wallets
 1. Use `/wallet_manager`
@@ -249,6 +234,19 @@ Status: ✅ Funded
 - Advanced filtering
 - Performance metrics
 - Enhanced security
+
+## 🚨 Important Notes
+
+### **CHANGED**: No More Standalone Commands
+- `/create_wallets` command has been **REMOVED**
+- All wallet creation goes through `/wallet_manager`
+- Cleaner, more organized workflow
+
+### **NEW**: Centralized Approach
+- Single point of entry for all wallet operations
+- Consistent user experience
+- Better error handling
+- Improved security
 
 ---
 
