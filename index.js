@@ -385,14 +385,11 @@ bot.command('wallet_manager', async (ctx) => {
         { text: '➕ Create New Wallet', callback_data: 'create_single_wallet' }
       ],
       [
-        { text: '🔢 Create Multiple Wallets', callback_data: 'create_multiple_wallets' },
-        { text: '💰 Check Balances', callback_data: 'check_balances' }
+        { text: '💰 Check Balances', callback_data: 'check_balances' },
+        { text: '🔍 Wallet Details', callback_data: 'wallet_details' }
       ],
       [
-        { text: '🔍 Wallet Details', callback_data: 'wallet_details' },
-        { text: '❌ Delete Specific', callback_data: 'delete_specific' }
-      ],
-      [
+        { text: '❌ Delete Specific', callback_data: 'delete_specific' },
         { text: '🗑️ Delete All Wallets', callback_data: 'delete_all_wallets' }
       ]
     ]
@@ -408,7 +405,14 @@ bot.action('view_all_wallets', async (ctx) => {
   const wallets = loadWallets();
   
   if (wallets.length === 0) {
-    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.');
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+      ]
+    };
+    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.', {
+      reply_markup: keyboard
+    });
   }
   
   let message = `📋 All Wallets (${wallets.length} total):\n\n`;
@@ -423,10 +427,44 @@ bot.action('view_all_wallets', async (ctx) => {
     message = message.substring(0, 4093) + '...';
   }
   
-  ctx.editMessageText(message);
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+    ]
+  };
+  
+  ctx.editMessageText(message, { reply_markup: keyboard });
 });
 
 bot.action('create_single_wallet', async (ctx) => {
+  const wallets = loadWallets();
+  
+  if (wallets.length >= 50) {
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+      ]
+    };
+    return ctx.editMessageText('❌ Maximum 50 wallets reached. Delete some wallets first.', {
+      reply_markup: keyboard
+    });
+  }
+  
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '✅ Create 1 Wallet', callback_data: 'confirm_create_wallet' },
+        { text: '🔙 Back to Manager', callback_data: 'back_to_manager' }
+      ]
+    ]
+  };
+  
+  ctx.editMessageText(`➕ Create New Wallet\n\nCurrent wallets: ${wallets.length}/50\n\nWould you like to create 1 new wallet?`, {
+    reply_markup: keyboard
+  });
+});
+
+bot.action('confirm_create_wallet', async (ctx) => {
   const wallets = loadWallets();
   const keypair = Keypair.generate();
   
@@ -439,64 +477,16 @@ bot.action('create_single_wallet', async (ctx) => {
   });
   
   saveWallets(wallets);
-  ctx.editMessageText(`✅ New wallet created!\n\nAddress: \`${keypair.publicKey.toBase58()}\`\nTotal wallets: ${wallets.length}`);
-});
-
-bot.action('create_multiple_wallets', async (ctx) => {
+  
   const keyboard = {
     inline_keyboard: [
-      [
-        { text: '5 Wallets', callback_data: 'create_5_wallets' },
-        { text: '10 Wallets', callback_data: 'create_10_wallets' },
-        { text: '20 Wallets', callback_data: 'create_20_wallets' }
-      ],
-      [
-        { text: '30 Wallets', callback_data: 'create_30_wallets' },
-        { text: '40 Wallets', callback_data: 'create_40_wallets' },
-        { text: '50 Wallets', callback_data: 'create_50_wallets' }
-      ],
-      [
-        { text: '🔙 Back to Manager', callback_data: 'back_to_manager' }
-      ]
+      [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
     ]
   };
   
-  ctx.editMessageText('🔢 Select number of wallets to create:', {
+  ctx.editMessageText(`✅ New wallet created!\n\nAddress: \`${keypair.publicKey.toBase58()}\`\nTotal wallets: ${wallets.length}/50`, {
     reply_markup: keyboard
   });
-});
-
-// Handle multiple wallet creation
-bot.action(/create_(\d+)_wallets/, async (ctx) => {
-  const count = parseInt(ctx.match[1]);
-  const wallets = loadWallets();
-  
-  if (wallets.length + count > 50) {
-    return ctx.editMessageText(`❌ Cannot create ${count} wallets. Maximum 50 wallets allowed. Current: ${wallets.length}`);
-  }
-  
-  ctx.editMessageText(`🔄 Creating ${count} wallets...`);
-  
-  try {
-    const startIndex = wallets.length;
-    
-    for (let i = 0; i < count; i++) {
-      const keypair = Keypair.generate();
-      wallets.push({
-        id: startIndex + i + 1,
-        secretKey: Array.from(keypair.secretKey),
-        pubkey: keypair.publicKey.toBase58(),
-        createdAt: new Date().toISOString(),
-        name: `Wallet ${startIndex + i + 1}`
-      });
-    }
-    
-    saveWallets(wallets);
-    ctx.editMessageText(`✅ Successfully created ${count} wallets!\n\nTotal wallets: ${wallets.length}\n\nUse "View All Wallets" to see the new wallets.`);
-  } catch (error) {
-    console.error('Error creating wallets:', error);
-    ctx.editMessageText('❌ Error creating wallets. Please try again.');
-  }
 });
 
 bot.action('delete_all_wallets', async (ctx) => {
@@ -504,7 +494,7 @@ bot.action('delete_all_wallets', async (ctx) => {
     inline_keyboard: [
       [
         { text: '✅ Confirm Delete All', callback_data: 'confirm_delete_all' },
-        { text: '❌ Cancel', callback_data: 'cancel_delete' }
+        { text: '❌ Cancel', callback_data: 'back_to_manager' }
       ]
     ]
   };
@@ -516,7 +506,16 @@ bot.action('delete_all_wallets', async (ctx) => {
 
 bot.action('confirm_delete_all', async (ctx) => {
   saveWallets([]);
-  ctx.editMessageText('✅ All wallets have been deleted.');
+  
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+    ]
+  };
+  
+  ctx.editMessageText('✅ All wallets have been deleted.', {
+    reply_markup: keyboard
+  });
 });
 
 bot.action('cancel_delete', async (ctx) => {
@@ -551,7 +550,14 @@ bot.action('check_balances', async (ctx) => {
   const wallets = loadWallets();
   
   if (wallets.length === 0) {
-    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.');
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+      ]
+    };
+    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.', {
+      reply_markup: keyboard
+    });
   }
   
   ctx.editMessageText('🔄 Checking balances...');
@@ -579,9 +585,22 @@ bot.action('check_balances', async (ctx) => {
     message += `Total SOL: ${totalBalance.toFixed(4)}\n`;
     message += `Average: ${(totalBalance / Math.min(wallets.length, 20)).toFixed(4)} SOL per wallet`;
     
-    ctx.editMessageText(message);
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+      ]
+    };
+    
+    ctx.editMessageText(message, { reply_markup: keyboard });
   } catch (error) {
-    ctx.editMessageText('❌ Error checking balances. Please try again.');
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+      ]
+    };
+    ctx.editMessageText('❌ Error checking balances. Please try again.', {
+      reply_markup: keyboard
+    });
   }
 });
 
@@ -589,7 +608,14 @@ bot.action('wallet_details', async (ctx) => {
   const wallets = loadWallets();
   
   if (wallets.length === 0) {
-    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.');
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+      ]
+    };
+    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.', {
+      reply_markup: keyboard
+    });
   }
   
   let message = '🔍 Select a wallet to view details:\n\n';
@@ -600,14 +626,27 @@ bot.action('wallet_details', async (ctx) => {
   
   message += '\nReply with the wallet number (1-' + wallets.length + ') to view details.';
   
-  ctx.editMessageText(message);
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+    ]
+  };
+  
+  ctx.editMessageText(message, { reply_markup: keyboard });
 });
 
 bot.action('delete_specific', async (ctx) => {
   const wallets = loadWallets();
   
   if (wallets.length === 0) {
-    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.');
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+      ]
+    };
+    return ctx.editMessageText('❌ No wallets found. Use the wallet manager to create wallets.', {
+      reply_markup: keyboard
+    });
   }
   
   let message = '🗑️ Select a wallet to delete:\n\n';
@@ -618,7 +657,13 @@ bot.action('delete_specific', async (ctx) => {
   
   message += '\nReply with the wallet number (1-' + wallets.length + ') to delete.';
   
-  ctx.editMessageText(message);
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+    ]
+  };
+  
+  ctx.editMessageText(message, { reply_markup: keyboard });
 });
 
 // Handle text responses for wallet details and deletion
@@ -626,7 +671,7 @@ bot.on('text', async (ctx) => {
   const text = ctx.message.text;
   const wallets = loadWallets();
   
-  // Check if it's a wallet number for details
+  // Check if it's a wallet number for details or deletion
   if (/^\d+$/.test(text)) {
     const walletIndex = parseInt(text) - 1;
     
@@ -654,7 +699,7 @@ bot.on('text', async (ctx) => {
         inline_keyboard: [
           [
             { text: '🗑️ Delete This Wallet', callback_data: `delete_wallet_${walletIndex}` },
-            { text: '📋 Back to Manager', callback_data: 'back_to_manager' }
+            { text: '🔙 Back to Manager', callback_data: 'back_to_manager' }
           ]
         ]
       };
@@ -673,7 +718,15 @@ bot.action(/delete_wallet_(\d+)/, async (ctx) => {
     const deletedWallet = wallets.splice(walletIndex, 1)[0];
     saveWallets(wallets);
     
-    ctx.editMessageText(`✅ Deleted wallet: ${deletedWallet.name}\n\nRemaining wallets: ${wallets.length}`);
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: '🔙 Back to Manager', callback_data: 'back_to_manager' }]
+      ]
+    };
+    
+    ctx.editMessageText(`✅ Deleted wallet: ${deletedWallet.name}\n\nRemaining wallets: ${wallets.length}`, {
+      reply_markup: keyboard
+    });
   }
 });
 
@@ -687,14 +740,11 @@ bot.action('back_to_manager', async (ctx) => {
         { text: '➕ Create New Wallet', callback_data: 'create_single_wallet' }
       ],
       [
-        { text: '🔢 Create Multiple Wallets', callback_data: 'create_multiple_wallets' },
-        { text: '💰 Check Balances', callback_data: 'check_balances' }
+        { text: '💰 Check Balances', callback_data: 'check_balances' },
+        { text: '🔍 Wallet Details', callback_data: 'wallet_details' }
       ],
       [
-        { text: '🔍 Wallet Details', callback_data: 'wallet_details' },
-        { text: '❌ Delete Specific', callback_data: 'delete_specific' }
-      ],
-      [
+        { text: '❌ Delete Specific', callback_data: 'delete_specific' },
         { text: '🗑️ Delete All Wallets', callback_data: 'delete_all_wallets' }
       ]
     ]
