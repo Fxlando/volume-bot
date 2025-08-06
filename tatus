@@ -1,0 +1,3 @@
+[33m6723726[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m Fix all critical issues: Update Solana Web3.js, fix transaction confirmation, enhance rate limiting, improve error handling, add token validation, implement dynamic priority fees, and update documentation
+[33m2a67b34[m Fix critical issues: .env corruption, missing Helius RPC, and transaction confirmation logic
+* [32mmaster[m
