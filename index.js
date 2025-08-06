@@ -24,6 +24,7 @@ const {
 } = require('@solana/web3.js');
 const fs = require('fs');
 const fetch = require('node-fetch');
+const bs58 = require('bs58');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const connection = new Connection(process.env.HELIUS_RPC || clusterApiUrl('mainnet-beta'), {
@@ -637,7 +638,7 @@ bot.on('text', async (ctx) => {
       message += `Name: ${wallet.name}\n`;
       message += `ID: ${wallet.id}\n`;
       message += `Public Key: \`${wallet.pubkey}\`\n`;
-      message += `Private Key: \`[${wallet.secretKey.join(',')}]\`\n`;
+      message += `Private Key: \`${bs58.encode(wallet.secretKey)}\`\n`;
       message += `Created: ${new Date(wallet.createdAt).toLocaleString()}\n\n`;
       
       try {
