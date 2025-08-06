@@ -6,7 +6,11 @@
       "Bash(git config:*)",
       "Bash(git remote set-url:*)",
       "Bash(npm install)",
-      "Bash(timeout 10 npm start)"
+      "Bash(timeout 10 npm start)",
+      "Bash(node:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(npm test)",
+      "Bash(npm ls:*)"
     ],
     "deny": []
   }

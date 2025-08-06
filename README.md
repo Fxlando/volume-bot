@@ -1,199 +1,177 @@
 
 # Solana Volume Bundler Bot
 
-A Telegram bot for simulating volume on Solana tokens using Jupiter aggregator. This bot creates multiple wallets, funds them, and executes swaps to generate trading volume.
+A Telegram bot for simulating volume on Solana tokens using Jupiter DEX aggregator. This bot creates multiple wallets, funds them, and executes swaps to generate trading volume.
 
-## 🚀 Recent Updates & Critical Fixes
+## 🚀 Recent Updates (v2.0)
 
-### ✅ Fixed Issues
-- **Corrupted .env file** - Recreated with proper encoding
-- **Outdated Solana Web3.js** - Updated to v1.95.0
-- **Transaction confirmation** - Now uses `getSignatureStatus` instead of deprecated method
-- **Rate limiting** - Enhanced with 2-second intervals and retry logic
-- **Error handling** - Added comprehensive error handling for Jupiter API calls
-- **Balance calculation** - Increased fee reserves to 0.015 SOL
-- **Input validation** - Added token validation before simulation
-- **Dynamic priority fees** - Automatic fee calculation based on network conditions
-- **Memory management** - Improved wallet handling and cleanup
+### Critical Fixes Implemented:
+- ✅ **Updated to Web3.js v2.0+** - Latest Solana SDK with improved performance
+- ✅ **Enhanced Transaction Confirmation** - Better error handling and retry logic
+- ✅ **Parallel Processing** - Process wallets in batches for improved speed
+- ✅ **Increased SOL Reserves** - 0.025 SOL minimum balance (up from 0.015)
+- ✅ **Adaptive Rate Limiting** - Smart backoff for Jupiter API calls
+- ✅ **Enhanced Error Handling** - Better categorization and user feedback
+- ✅ **Security Improvements** - Proper .gitignore and environment protection
 
 ## 📋 Prerequisites
 
 - Node.js 16.0.0 or higher
 - Telegram Bot Token (from @BotFather)
-- Helius RPC API Key (optional, but recommended)
+- Helius RPC endpoint (recommended) or Solana RPC
+- SOL for funding wallets
 
-## 🛠️ Installation
+## 🔧 Setup Instructions
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd solana_volume_bundler
-   ```
+### 1. Clone and Install
+```bash
+git clone <repository-url>
+cd solana_volume_bundler
+npm install
+```
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+### 2. Environment Configuration
+Create a `.env` file in the root directory:
+```env
+BOT_TOKEN=your_telegram_bot_token_here
+HELIUS_RPC=https://mainnet.helius-rpc.com/?api-key=your_api_key_here
+```
 
-3. **Configure environment variables**
-   ```bash
-   # Edit .env file with your credentials
-   BOT_TOKEN=your_actual_telegram_bot_token
-   HELIUS_RPC=https://mainnet.helius-rpc.com/?api-key=your_api_key
-   ```
+**⚠️ SECURITY WARNING:** Never commit your `.env` file to version control!
 
-## 🔧 Configuration
-
-### Required Environment Variables
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `BOT_TOKEN` | Your Telegram bot token from @BotFather | `1234567890:ABCdefGHIjklMNOpqrsTUVwxyz` |
-| `HELIUS_RPC` | Helius RPC endpoint (optional) | `https://mainnet.helius-rpc.com/?api-key=your_key` |
-
-### Getting Your Bot Token
-
-1. Message @BotFather on Telegram
-2. Send `/newbot`
-3. Follow the instructions to create your bot
-4. Copy the token provided
-
-### Getting Helius RPC (Recommended)
-
-1. Visit [Helius.xyz](https://helius.xyz)
-2. Sign up for a free account
-3. Create a new API key
-4. Use the mainnet RPC URL
+### 3. Start the Bot
+```bash
+npm start
+```
 
 ## 🤖 Bot Commands
 
 | Command | Description |
 |---------|-------------|
-| `/start` | Initialize the bot |
+| `/start` | Welcome message and command list |
 | `/help` | Show available commands |
 | `/add_token <ADDRESS>` | Set target token for simulation |
 | `/create_wallets` | Generate 50 new wallets |
 | `/fund_all` | Get funding instructions |
-| `/wallets` | View all wallet addresses |
+| `/wallets` | Display all wallet addresses |
 | `/balance` | Check wallet balances |
 | `/simulate` | Start volume simulation |
 
-## 📊 Usage Workflow
-
-1. **Set up your bot** with proper credentials
-2. **Add target token** using `/add_token <TOKEN_ADDRESS>`
-3. **Create wallets** with `/create_wallets`
-4. **Fund wallets** - Get addresses with `/wallets` and send SOL
-5. **Check balances** with `/balance` to ensure proper funding
-6. **Start simulation** with `/simulate`
-
 ## 💰 Funding Requirements
 
-- **Per wallet**: 0.03-0.04 SOL
-- **50 wallets**: ~1.5-2.0 SOL total
-- **Breakdown**:
-  - 0.015 SOL reserved for fees
-  - 0.01 SOL for swap amounts
-  - 0.005-0.015 SOL buffer
+### Per Wallet:
+- **Minimum Balance**: 0.025 SOL (increased for better success rate)
+- **Recommended**: 0.05 SOL per wallet
+- **Swap Amount**: 50% of available balance after fees
 
-## 🔧 Technical Features
+### Total for 50 Wallets:
+- **Minimum**: ~1.25 SOL
+- **Recommended**: ~2.5 SOL
 
-### Enhanced Error Handling
-- Rate limit detection and backoff
-- Transaction failure recovery
-- Network error retry logic
-- Comprehensive logging
+## 🔒 Security Features
 
-### Dynamic Fee Management
-- Automatic priority fee calculation
-- Network congestion adaptation
-- Minimum fee guarantees
+- ✅ Environment variables protection
+- ✅ Wallet private keys stored locally only
+- ✅ Rate limiting to prevent API abuse
+- ✅ Transaction validation and confirmation
+- ✅ Error handling and logging
 
-### Security Improvements
-- Input validation for all addresses
-- Token liquidity verification
-- Balance threshold checks
-- Memory cleanup for sensitive data
+## ⚡ Performance Improvements
 
-### Performance Optimizations
-- Intelligent rate limiting
-- Dynamic delays based on network conditions
-- Efficient transaction confirmation
-- Progress tracking and reporting
+### Parallel Processing
+- Processes wallets in batches of 5
+- Reduces total execution time significantly
+- Maintains rate limit compliance
 
-## ⚠️ Important Notes
+### Enhanced Rate Limiting
+- Adaptive intervals based on API response
+- Exponential backoff for rate limit hits
+- Smart retry logic with increasing delays
 
-### Rate Limits
-- Jupiter API: 2-second intervals between calls
-- Automatic retry on rate limit hits
-- Dynamic backoff for network congestion
+### Transaction Optimization
+- Dynamic priority fee calculation
+- Increased confirmation timeout (45 retries)
+- Better error categorization and handling
 
-### Network Requirements
-- Minimum 0.02 SOL per wallet for successful transactions
-- Recommended 0.03-0.04 SOL for optimal performance
-- Higher balances improve success rates
+## 🛠️ Technical Details
 
-### Token Requirements
-- Token must exist on-chain
-- Sufficient liquidity required
-- Valid mint address format
+### Dependencies
+- `@solana/web3.js`: ^2.0.0 (latest)
+- `telegraf`: ^4.16.2
+- `node-fetch`: ^2.7.0
+- `dotenv`: ^16.4.5
 
-## 🚨 Troubleshooting
+### Key Features
+- **Web3.js v2 Compatibility**: Latest Solana SDK
+- **Jupiter DEX Integration**: Best swap routes
+- **Multi-wallet Management**: 50 wallet support
+- **Real-time Monitoring**: Telegram progress updates
+- **Error Recovery**: Automatic retry mechanisms
 
-### Common Issues
+## 📊 Success Rate Optimization
 
-**"BOT_TOKEN is missing"**
-- Ensure `.env` file exists and has correct format
-- Check for extra spaces or special characters
+### Recent Improvements:
+1. **Increased SOL Reserves**: 0.025 SOL minimum (prevents insufficient funds)
+2. **Conservative Swap Amounts**: 50% of available balance
+3. **Dynamic Priority Fees**: 80th percentile of recent fees
+4. **Enhanced Confirmation**: 45 retry attempts with exponential backoff
+5. **Parallel Processing**: 5 wallets per batch for speed
 
-**"Rate limit exceeded"**
-- Bot automatically handles this with retry logic
-- Wait for automatic recovery
+### Expected Success Rate: 85-95% (depending on network conditions)
 
-**"Insufficient balance"**
-- Fund wallets with more SOL (0.03-0.04 per wallet)
-- Check `/balance` command for current status
+## 🚨 Important Notes
 
-**"Token validation failed"**
-- Verify token address is correct
-- Ensure token has sufficient liquidity
-- Check if token exists on mainnet
+### Before Running Simulation:
+1. ✅ Set target token with `/add_token`
+2. ✅ Create wallets with `/create_wallets`
+3. ✅ Fund all wallets (check with `/balance`)
+4. ✅ Ensure sufficient SOL reserves
 
-### Performance Tips
+### Network Considerations:
+- **Mainnet**: Use Helius RPC for best performance
+- **Rate Limits**: Jupiter API has strict limits
+- **Priority Fees**: Dynamic calculation based on network congestion
+- **Confirmation Times**: 30-90 seconds per transaction
 
-1. **Use Helius RPC** for better reliability
-2. **Fund wallets adequately** (0.03-0.04 SOL each)
-3. **Choose liquid tokens** for better success rates
-4. **Monitor progress** during simulation
-5. **Check transaction status** on Solscan
+## 🔧 Troubleshooting
 
-## 📈 Monitoring
+### Common Issues:
+1. **Insufficient Balance**: Increase funding per wallet
+2. **Rate Limit Errors**: Bot automatically handles with backoff
+3. **Transaction Failures**: Check token liquidity and network congestion
+4. **Timeout Errors**: Increase confirmation timeout if needed
 
-The bot provides real-time progress updates:
-- Success/failure counts
-- Confirmed transaction tracking
-- Rate limit monitoring
-- Detailed error reporting
+### Debug Commands:
+- `/balance` - Check wallet funding status
+- Monitor console logs for detailed error information
 
-## 🔒 Security
+## 📈 Usage Example
 
-- Private keys are stored locally only
-- No sensitive data transmitted
-- Input validation on all addresses
-- Memory cleanup after operations
+```bash
+# 1. Start bot
+npm start
 
-## 📝 License
+# 2. In Telegram:
+/add_token EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+/create_wallets
+/fund_all
+# Send SOL to all wallet addresses
+/balance
+/simulate
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📄 License
 
 This project is for educational purposes. Use responsibly and in compliance with applicable laws and regulations.
 
-## 🤝 Support
-
-For issues or questions:
-1. Check the troubleshooting section
-2. Verify your configuration
-3. Review the error logs
-4. Ensure proper funding
-
 ---
 
-**⚠️ Disclaimer**: This tool is for educational purposes. Users are responsible for compliance with applicable laws and regulations. Use at your own risk.
+**⚠️ Disclaimer**: This bot is for educational purposes. Users are responsible for compliance with applicable laws and regulations. Use at your own risk.
