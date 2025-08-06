@@ -19,13 +19,17 @@ const {
   Transaction,
   VersionedTransaction,
   LAMPORTS_PER_SOL,
-  clusterApiUrl
+  clusterApiUrl,
+  Commitment
 } = require('@solana/web3.js');
 const fs = require('fs');
 const fetch = require('node-fetch');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const connection = new Connection(process.env.HELIUS_RPC || clusterApiUrl('mainnet-beta'), 'confirmed');
+const connection = new Connection(process.env.HELIUS_RPC || clusterApiUrl('mainnet-beta'), {
+  commitment: 'confirmed',
+  confirmTransactionInitialTimeout: 60000
+});
 const walletFile = './wallets.json';
 
 let TOKEN_MINT = null;
@@ -61,26 +65,34 @@ function isValidSolanaAddress(address) {
   }
 }
 
-// Calculate dynamic swap amount based on wallet balance
+// Enhanced balance calculation with proper fee estimation
 function calculateSwapAmount(balance) {
-  const minBalance = 0.005 * LAMPORTS_PER_SOL; // Keep 0.005 SOL for fees
+  // Reserve more SOL for fees in current network conditions
+  const minBalance = 0.015 * LAMPORTS_PER_SOL; // Increased to 0.015 SOL for fees
   const availableBalance = balance - minBalance;
   
   if (availableBalance <= 0) return 0;
   
-  // Use 70% of available balance for swap
-  return Math.floor(availableBalance * 0.7);
+  // Use 60% of available balance for swap (reduced from 70%)
+  return Math.floor(availableBalance * 0.6);
 }
 
-// Wait for transaction confirmation
+// Enhanced transaction confirmation with proper error handling
 async function confirmTransaction(signature, maxRetries = 30) {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-      if (confirmation.value.err) {
-        throw new Error('Transaction failed');
+      // Use getSignatureStatus instead of deprecated confirmTransaction
+      const status = await connection.getSignatureStatus(signature);
+      
+      if (status.value?.confirmationStatus === 'confirmed' || status.value?.confirmationStatus === 'finalized') {
+        if (status.value.err) {
+          throw new Error('Transaction failed');
+        }
+        return true;
       }
-      return true;
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 2000));
     } catch (error) {
       if (i === maxRetries - 1) throw error;
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -89,10 +101,12 @@ async function confirmTransaction(signature, maxRetries = 30) {
   return false;
 }
 
-// Rate limiting for Jupiter API calls
+// Enhanced rate limiting for Jupiter API calls
 const jupiterRateLimit = {
   lastCall: 0,
-  minInterval: 500 // 500ms between calls
+  minInterval: 2000, // Increased to 2 seconds between calls
+  retryCount: 0,
+  maxRetries: 3
 };
 
 async function jupiterApiCall(url, options = {}) {
@@ -105,19 +119,90 @@ async function jupiterApiCall(url, options = {}) {
   
   jupiterRateLimit.lastCall = Date.now();
   
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+      }
+    });
+    
+    if (response.status === 429) {
+      // Rate limit hit - wait longer and retry
+      console.log('Rate limit hit, waiting 5 seconds...');
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      jupiterRateLimit.minInterval = Math.min(jupiterRateLimit.minInterval * 1.5, 10000); // Increase interval
+      throw new Error('Rate limit exceeded');
     }
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Jupiter API error: ${response.status} ${response.statusText}`);
+    
+    if (!response.ok) {
+      throw new Error(`Jupiter API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Reset rate limit on success
+    jupiterRateLimit.minInterval = 2000;
+    jupiterRateLimit.retryCount = 0;
+    
+    return data;
+  } catch (error) {
+    if (jupiterRateLimit.retryCount < jupiterRateLimit.maxRetries) {
+      jupiterRateLimit.retryCount++;
+      console.log(`Retrying Jupiter API call (${jupiterRateLimit.retryCount}/${jupiterRateLimit.maxRetries})...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return jupiterApiCall(url, options);
+    }
+    throw error;
+  }
+}
+
+// Validate token before starting simulation
+async function validateToken(tokenMint) {
+  try {
+    const tokenPubkey = new PublicKey(tokenMint);
+    
+    // Check if token exists and has some basic info
+    const tokenInfo = await connection.getAccountInfo(tokenPubkey);
+    if (!tokenInfo) {
+      throw new Error('Token does not exist on-chain');
+    }
+    
+    // Try to get a quote to check liquidity
+    const testQuote = await jupiterApiCall(
+      `https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112&outputMint=${tokenMint}&amount=${LAMPORTS_PER_SOL}&slippageBps=300`
+    );
+    
+    if (testQuote.error) {
+      throw new Error(`Token has insufficient liquidity: ${testQuote.error}`);
+    }
+    
+    return true;
+  } catch (error) {
+    throw new Error(`Token validation failed: ${error.message}`);
+  }
+}
+
+// Dynamic priority fee calculation
+async function getDynamicPriorityFee() {
+  try {
+    // Get recent priority fees from the network
+    const recentPriorities = await connection.getRecentPrioritizationFees([
+      new PublicKey('So11111111111111111111111111111111111111112') // SOL mint
+    ]);
+    
+    if (recentPriorities.length > 0) {
+      // Use 75th percentile of recent fees
+      const sortedFees = recentPriorities.map(fee => fee.prioritizationFee).sort((a, b) => a - b);
+      const percentileIndex = Math.floor(sortedFees.length * 0.75);
+      return Math.max(sortedFees[percentileIndex] || 5000, 5000); // Minimum 5000 lamports
+    }
+  } catch (error) {
+    console.log('Could not get dynamic priority fee, using default');
   }
   
-  return response.json();
+  return 10000; // Default 10,000 lamports
 }
 
 bot.start((ctx) => {
@@ -145,7 +230,7 @@ bot.command('help', (ctx) => {
 ⚠️ Make sure to fund wallets before running simulation!`);
 });
 
-bot.command('add_token', (ctx) => {
+bot.command('add_token', async (ctx) => {
   const parts = ctx.message.text.split(' ');
   if (parts.length < 2) {
     return ctx.reply('❌ Usage: /add_token <TOKEN_ADDRESS>\nExample: /add_token EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
@@ -156,8 +241,14 @@ bot.command('add_token', (ctx) => {
     return ctx.reply('❌ Invalid Solana address format. Please provide a valid token mint address.');
   }
   
-  TOKEN_MINT = tokenAddress;
-  ctx.reply(`✅ Token successfully set to: \`${TOKEN_MINT}\``);
+  try {
+    ctx.reply('🔄 Validating token...');
+    await validateToken(tokenAddress);
+    TOKEN_MINT = tokenAddress;
+    ctx.reply(`✅ Token successfully validated and set to: \`${TOKEN_MINT}\``);
+  } catch (error) {
+    ctx.reply(`❌ Token validation failed: ${error.message}`);
+  }
 });
 
 bot.command('create_wallets', async (ctx) => {
@@ -189,9 +280,9 @@ bot.command('fund_all', async (ctx) => {
   
   ctx.reply(`💰 Funding Instructions:
 
-1. Each wallet needs ~0.01-0.02 SOL for transaction fees
-2. Add ~0.01 SOL for swap amounts (total ~0.02-0.03 SOL per wallet)
-3. Total needed: ~${(0.025 * wallets.length).toFixed(2)} SOL for all ${wallets.length} wallets
+1. Each wallet needs ~0.02-0.03 SOL for transaction fees and swaps
+2. Add ~0.01 SOL for swap amounts (total ~0.03-0.04 SOL per wallet)
+3. Total needed: ~${(0.035 * wallets.length).toFixed(2)} SOL for all ${wallets.length} wallets
 
 Use /wallets to get all addresses, then send SOL from your main wallet.
 
@@ -254,6 +345,10 @@ bot.command('simulate', async (ctx) => {
   let successCount = 0;
   let errorCount = 0;
   let confirmedCount = 0;
+  let rateLimitCount = 0;
+
+  // Get dynamic priority fee
+  const priorityFee = await getDynamicPriorityFee();
 
   for (let i = 0; i < wallets.length; i++) {
     try {
@@ -261,7 +356,7 @@ bot.command('simulate', async (ctx) => {
       
       // Check wallet balance first
       const balance = await connection.getBalance(keypair.publicKey);
-      if (balance < 10000000) { // Less than 0.01 SOL
+      if (balance < 20000000) { // Less than 0.02 SOL
         console.log(`Wallet ${i + 1} has insufficient balance: ${balance / LAMPORTS_PER_SOL} SOL`);
         errorCount++;
         continue;
@@ -275,10 +370,22 @@ bot.command('simulate', async (ctx) => {
         continue;
       }
 
-      // Get quote from Jupiter with dynamic amount
-      const quoteData = await jupiterApiCall(
-        `https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112&outputMint=${TOKEN_MINT}&amount=${swapAmount}&slippageBps=300`
-      );
+      // Get quote from Jupiter with dynamic amount and proper error handling
+      let quoteData;
+      try {
+        quoteData = await jupiterApiCall(
+          `https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112&outputMint=${TOKEN_MINT}&amount=${swapAmount}&slippageBps=300`
+        );
+      } catch (quoteError) {
+        if (quoteError.message.includes('Rate limit')) {
+          rateLimitCount++;
+          console.log(`Rate limit hit for wallet ${i + 1}, skipping...`);
+        } else {
+          console.log(`Quote error for wallet ${i + 1}: ${quoteError.message}`);
+        }
+        errorCount++;
+        continue;
+      }
       
       if (!quoteData || quoteData.error) {
         console.log(`No valid quote for wallet ${i + 1}:`, quoteData?.error);
@@ -286,17 +393,24 @@ bot.command('simulate', async (ctx) => {
         continue;
       }
 
-      // Get swap transaction
-      const swapData = await jupiterApiCall('https://quote-api.jup.ag/v6/swap', {
-        method: 'POST',
-        body: JSON.stringify({
-          quoteResponse: quoteData,
-          userPublicKey: keypair.publicKey.toBase58(),
-          wrapAndUnwrapSol: true,
-          dynamicComputeUnitLimit: true,
-          prioritizationFeeLamports: 'auto'
-        })
-      });
+      // Get swap transaction with enhanced error handling
+      let swapData;
+      try {
+        swapData = await jupiterApiCall('https://quote-api.jup.ag/v6/swap', {
+          method: 'POST',
+          body: JSON.stringify({
+            quoteResponse: quoteData,
+            userPublicKey: keypair.publicKey.toBase58(),
+            wrapAndUnwrapSol: true,
+            dynamicComputeUnitLimit: true,
+            prioritizationFeeLamports: priorityFee
+          })
+        });
+      } catch (swapError) {
+        console.log(`Swap transaction error for wallet ${i + 1}: ${swapError.message}`);
+        errorCount++;
+        continue;
+      }
       
       if (!swapData.swapTransaction) {
         console.log(`No swap transaction for wallet ${i + 1}`);
@@ -309,13 +423,14 @@ bot.command('simulate', async (ctx) => {
       const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
       transaction.sign([keypair]);
 
-      // Send transaction
+      // Send transaction with enhanced options
       const signature = await connection.sendRawTransaction(transaction.serialize(), {
         skipPreflight: false,
-        maxRetries: 3
+        maxRetries: 3,
+        preflightCommitment: 'confirmed'
       });
 
-      // Wait for confirmation
+      // Wait for confirmation with enhanced error handling
       try {
         await confirmTransaction(signature);
         confirmedCount++;
@@ -323,17 +438,17 @@ bot.command('simulate', async (ctx) => {
       } catch (confirmError) {
         console.log(`❌ Wallet ${i + 1} transaction failed: ${confirmError.message}`);
         errorCount++;
-        // Remove 'continue' - let it count as success but not confirmed
       }
 
       successCount++;
       
       if (i % 5 === 0 || i === wallets.length - 1) {
-        ctx.reply(`📊 Progress: ${i + 1}/${wallets.length} | ✅ Success: ${successCount} | ❌ Errors: ${errorCount} | 🔍 Confirmed: ${confirmedCount}`);
+        ctx.reply(`📊 Progress: ${i + 1}/${wallets.length} | ✅ Success: ${successCount} | ❌ Errors: ${errorCount} | 🔍 Confirmed: ${confirmedCount} | ⚡ Rate Limits: ${rateLimitCount}`);
       }
       
-      // Add delay to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+      // Add dynamic delay based on rate limiting
+      const delay = rateLimitCount > 0 ? Math.random() * 4000 + 2000 : Math.random() * 2000 + 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
       
     } catch (error) {
       console.error(`Error with wallet ${i + 1}:`, error.message);
@@ -347,6 +462,7 @@ bot.command('simulate', async (ctx) => {
 ✅ Successful swaps: ${successCount}
 🔍 Confirmed transactions: ${confirmedCount}
 ❌ Failed attempts: ${errorCount}
+⚡ Rate limit hits: ${rateLimitCount}
 📊 Success rate: ${((successCount / wallets.length) * 100).toFixed(1)}%
 
 ${successCount > 0 ? `🔗 Check transactions on Solscan` : '⚠️ Consider checking wallet funding and token liquidity'}`);
